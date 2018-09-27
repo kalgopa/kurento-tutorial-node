@@ -15,26 +15,12 @@
  *
  */
 
-var path = require('path');
-var express = require('express');
-var ws = require('ws');
-var minimist = require('minimist');
-var url = require('url');
-var fs    = require('fs');
-var https = require('https');
-
-var options =
-{
-  key:  fs.readFileSync('keys/server.key'),
-  cert: fs.readFileSync('keys/server.crt')
-};
-
-var app = express();
 
 
 
 
 
+///////// MY APP /////////
 
 
 var kurento = require('kurento-client');
@@ -107,6 +93,10 @@ getKurentoClient(function callback(error, kurentoClient) {
                             "a=recvonly";
                             
                             rtpEndpoint.processOffer(sdp_rtp_offer, function(error, sdpAnswer){
+                                if (error) {
+                                    return callback(error);
+                                }
+                              sendSdpAnswer(sdpAnswer);
                             });
                         }
 
@@ -116,8 +106,8 @@ getKurentoClient(function callback(error, kurentoClient) {
         });
     });
 });
-        
-
+// From original app        
+app.use(express.static(path.join(__dirname, 'static')));
 
 //////*Helper function to create the WebRtcEndpoint element. STUN server is configured */
 
@@ -180,7 +170,7 @@ webRtcEndpoint.on('OnIceCandidate', function(event) {
     trickleIceCandidate(event.candidate); 
 });
   
-
+////// END OF MY APP //////
 
 
 //////////////////////* START COMMENTING 

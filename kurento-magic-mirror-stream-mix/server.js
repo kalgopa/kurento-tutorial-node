@@ -16,28 +16,16 @@
  */
 
 var path = require('path');
-var express = require('express');
-var ws = require('ws');
-var minimist = require('minimist');
 var url = require('url');
+var cookieParser = require('cookie-parser')
+var express = require('express');
+var session = require('express-session')
+var minimist = require('minimist');
+var ws = require('ws');
+var kurento = require('kurento-client');
 var fs    = require('fs');
 var https = require('https');
 
-var options =
-{
-  key:  fs.readFileSync('keys/server.key'),
-  cert: fs.readFileSync('keys/server.crt')
-};
-
-var app = express();
-
-
-
-
-
-
-
-var kurento = require('kurento-client');
 var kurentoClient = null;
 
 var argv = minimist(process.argv.slice(2), {
@@ -47,6 +35,132 @@ var argv = minimist(process.argv.slice(2), {
     }
 });
 
+var options =
+{
+key:  fs.readFileSync('keys/server.key'),
+cert: fs.readFileSync('keys/server.crt')
+};
+
+var app = express();
+
+/*
+* Management of sessions
+*/
+app.use(cookieParser());
+
+var sessionHandler = session({
+    secret : 'none',
+    rolling : true,
+    resave : true,
+    saveUninitialized : true
+});
+
+app.use(sessionHandler);
+
+/*
+* Definition of global variables.
+*/
+var sessions = {};
+var candidatesQueue = {};
+
+
+/*
+* Server startup
+*/
+var asUrl = url.parse(argv.as_uri);
+var port = asUrl.port;
+var server = https.createServer(options, app).listen(port, function() {
+    console.log('Kurento Tutorial started');
+    console.log('Open ' + url.format(asUrl) + ' with a WebRTC capable browser');
+});
+
+var wss = new ws.Server({
+    server : server,
+    path : '/magicmirror'
+});
+
+/*
+* Management of WebSocket messages
+*/
+wss.on('connection', function(ws) {
+    var sessionId = null;
+    var request = ws.upgradeReq;
+    var response = {
+        writeHead : {}
+    };
+
+    sessionHandler(request, response, function(err) {
+        sessionId = request.session.id;
+        console.log('Connection received with sessionId ' + sessionId);
+    });
+
+    ws.on('error', function(error) {
+        console.log('Connection ' + sessionId + ' error');
+        stop(sessionId);
+    });
+
+    ws.on('close', function() {
+        console.log('Connection ' + sessionId + ' closed');
+        stop(sessionId);
+    });
+
+    ws.on('message', function(_message) {
+        var message = JSON.parse(_message);
+        console.log('Connection ' + sessionId + ' received message ', message);
+
+        switch (message.id) {
+        case 'start':
+            sessionId = request.session.id;
+            start(sessionId, ws, message.sdpOffer, function(error, sdpAnswer) {
+                if (error) {
+                    return ws.send(JSON.stringify({
+                        id : 'error',
+                        message : error
+                    }));
+                }
+                ws.send(JSON.stringify({
+                    id : 'startResponse',
+                    sdpAnswer : sdpAnswer
+                }));
+            });
+            break;
+
+        case 'stop':
+            stop(sessionId);
+            break;
+
+        case 'onIceCandidate':
+            onIceCandidate(sessionId, message.candidate);
+            break;
+
+        default:
+            ws.send(JSON.stringify({
+                id : 'error',
+                message : 'Invalid message ' + message
+            }));
+            break;
+        }
+
+    });
+});
+
+
+
+
+
+
+////////////// My APP
+
+//var kurento = require('kurento-client');
+//var kurentoClient = null;
+/* 
+var argv = minimist(process.argv.slice(2), {
+    default: {
+        as_uri: 'https://localhost:8443/',
+        ws_uri: 'ws://localhost:8888/kurento'
+    }
+});
+*/
 
 function getKurentoClient(callback) {
     if (kurentoClient !== null) {
@@ -63,7 +177,9 @@ function getKurentoClient(callback) {
     callback(null, kurentoClient);
     });
 }
-    
+
+// From original app
+app.use(express.static(path.join(__dirname, 'static')));
 
 getKurentoClient(function callback(error, kurentoClient) {
     if (error) {
@@ -107,6 +223,10 @@ getKurentoClient(function callback(error, kurentoClient) {
                             "a=recvonly";
                             
                             rtpEndpoint.processOffer(sdp_rtp_offer, function(error, sdpAnswer){
+                                if (error) {
+                                    return callback(error);
+                                }
+                              sendSdpAnswer(sdpAnswer);
                             });
                         }
 
@@ -180,134 +300,16 @@ webRtcEndpoint.on('OnIceCandidate', function(event) {
     trickleIceCandidate(event.candidate); 
 });
   
+/////////// End of MY APP //////////
 
 
 
 //////////////////////* START COMMENTING 
 /*
-    var path = require('path');
-    var url = require('url');
-    var cookieParser = require('cookie-parser')
-    var express = require('express');
-    var session = require('express-session')
-    var minimist = require('minimist');
-    var ws = require('ws');
-    var kurento = require('kurento-client');
-    var fs    = require('fs');
-    var https = require('https');
 
-    var options =
-    {
-    key:  fs.readFileSync('keys/server.key'),
-    cert: fs.readFileSync('keys/server.crt')
-    };
-
-    var app = express();
-
-    /*
-    * Management of sessions
-    *//*
-    app.use(cookieParser());
-
-    var sessionHandler = session({
-        secret : 'none',
-        rolling : true,
-        resave : true,
-        saveUninitialized : true
-    });
-
-    app.use(sessionHandler);
-
-    /*
-    * Definition of global variables.
-    *//*
-    var sessions = {};
-    var candidatesQueue = {};
-
-
-    /*
-    * Server startup
-    *//*
-    var asUrl = url.parse(argv.as_uri);
-    var port = asUrl.port;
-    var server = https.createServer(options, app).listen(port, function() {
-        console.log('Kurento Tutorial started');
-        console.log('Open ' + url.format(asUrl) + ' with a WebRTC capable browser');
-    });
-
-    var wss = new ws.Server({
-        server : server,
-        path : '/magicmirror'
-    });
-
-    /*
-    * Management of WebSocket messages
-    *//*
-    wss.on('connection', function(ws) {
-        var sessionId = null;
-        var request = ws.upgradeReq;
-        var response = {
-            writeHead : {}
-        };
-
-        sessionHandler(request, response, function(err) {
-            sessionId = request.session.id;
-            console.log('Connection received with sessionId ' + sessionId);
-        });
-
-        ws.on('error', function(error) {
-            console.log('Connection ' + sessionId + ' error');
-            stop(sessionId);
-        });
-
-        ws.on('close', function() {
-            console.log('Connection ' + sessionId + ' closed');
-            stop(sessionId);
-        });
-
-        ws.on('message', function(_message) {
-            var message = JSON.parse(_message);
-            console.log('Connection ' + sessionId + ' received message ', message);
-
-            switch (message.id) {
-            case 'start':
-                sessionId = request.session.id;
-                start(sessionId, ws, message.sdpOffer, function(error, sdpAnswer) {
-                    if (error) {
-                        return ws.send(JSON.stringify({
-                            id : 'error',
-                            message : error
-                        }));
-                    }
-                    ws.send(JSON.stringify({
-                        id : 'startResponse',
-                        sdpAnswer : sdpAnswer
-                    }));
-                });
-                break;
-
-            case 'stop':
-                stop(sessionId);
-                break;
-
-            case 'onIceCandidate':
-                onIceCandidate(sessionId, message.candidate);
-                break;
-
-            default:
-                ws.send(JSON.stringify({
-                    id : 'error',
-                    message : 'Invalid message ' + message
-                }));
-                break;
-            }
-
-        });
-    });
-
-    /*
+/****************************************************************
     * Definition of functions
-    *//*
+    
 
     // Recover kurentoClient for the first time.
     function getKurentoClient(callback) {
@@ -462,5 +464,5 @@ webRtcEndpoint.on('OnIceCandidate', function(event) {
 
     app.use(express.static(path.join(__dirname, 'static')));
 
-*//*
+
 ////////////////* STOP COMMENTING *///////////////////

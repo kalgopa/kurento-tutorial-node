@@ -15,6 +15,164 @@
  *
  */
 
+//
+
+///////// MY APP /////////
+
+
+var kurento = require('kurento-client');
+var kurentoClient = null;
+
+var argv = minimist(process.argv.slice(2), {
+    default: {
+        as_uri: 'https://localhost:8443/',
+        ws_uri: 'ws://localhost:8888/kurento'
+    }
+});
+
+
+function getKurentoClient(callback) {
+    if (kurentoClient !== null) {
+    return callback(null, kurentoClient);
+    }
+
+    kurento(argv.ws_uri, function(error, _kurentoClient) {
+    if (error) {
+        console.log("Could not find media server at address " + argv.ws_uri); 
+        return callback("Could not find media server _____ at address" + argv.ws_uri +".Exiting with error" + error);
+    }
+
+    kurentoClient = _kurentoClient; 
+    callback(null, kurentoClient);
+    });
+}
+    
+
+getKurentoClient(function callback(error, kurentoClient) {
+    if (error) {
+        return callback(error);
+    }
+
+    kurentoClient.create('MediaPipeline', function(error, pipeline) {
+        if (error) {
+            return callback(error);
+        }
+
+        createWebRtcEndpoint(pipeline, function(error, webrtcEndpoint) {
+            if (error) {
+                pipeline.release();
+                return callback(error);
+            }
+            else {
+                webRtcEndpoint.on('OnIceCandidate', function(event) {
+                trickleIceCandidate(event.candidate); 
+                });
+                
+                createRtpEndpoint(pipeline, function(error, rtpEndpoint) {
+                    if (error) {
+                        pipeline.release();
+                        return callback(error);
+                    }
+
+                    connectMediaElements(webRtcEndpoint,rtpEndpoint, function(error) {
+                        if (error) {
+                            pipeline.release();
+                            return callback(error);
+                        }
+                        else {
+                            var sdp_rtp_offer = "v=0\n" + 
+                            "o=- 0 0 IN IP4" + "rtp://35.174.195.124:5000" + "\n" + 
+                            "s=gstreamer \n" + 
+                            "c=IN IP4" + "rtp://35.174.195.124:5000" + "\n" + 
+                            "t=0 o\n" + 
+                            "m=video 6784 RTP/AVP 96\n" + 
+                            "a=rtpmap:96 H264/90000\n" + 
+                            "a=recvonly";
+                            
+                            rtpEndpoint.processOffer(sdp_rtp_offer, function(error, sdpAnswer){
+                                if (error) {
+                                    return callback(error);
+                                }
+                              sendSdpAnswer(sdpAnswer);
+                            });
+                        }
+
+                    });
+                });
+            }
+        });
+    });
+});
+// From original app        
+app.use(express.static(path.join(__dirname, 'static')));
+
+//////*Helper function to create the WebRtcEndpoint element. STUN server is configured */
+
+function createWebRtcEndpoint(pipeline, callback) {
+    pipeline.create('WebRtcEndpoint', {useDataChannels: false}, function(error, webRtcEndpoint) {
+        if (error) {
+            return callback(error);
+        }
+
+        webRtcEndpoint.setStunServerAddress("64.233.188.127");
+        webRtEndpoint.setStunServerPort(19302);
+        return callback(null, webRtcEndpoint); 
+    });
+}
+
+/////* Helper function to create the RtpEndpoint element *////////// 
+
+function createRtpEndpoint(pipeline, callback) {
+    pipeline.create('RtpEndpoint', function(error, rtpEndpoint) {
+        if (error) {
+        return callback(error);
+        }
+        return callback(null, rtpEndpoint);
+    });
+}
+
+/////////* Helper function to actually connect the WebRtcEndpoint and the RtpEndpoint creating the Media Pipeline *///////////////
+
+function connectMediaElements(webRtcEndpoint, rtpEndpoint, callback) {
+    webRtcEndpoint.connect(rtpEndpoint, function(error) {
+        if (error) {
+            return callback(error);
+        }
+        return callback(null);
+    });
+}
+
+
+////////* SDP Exchange *//////////////////////////
+
+myWebRtcEndpoint.processOffer(sdp, function(error, sdpAnswer) {
+    if (error) {
+        return callback(error);
+    }
+  sendSdpAnswer(sdpAnswer);
+});
+
+  
+///////* To make Kurento start gathering ICE candidates *///////////
+
+myWebRtcEndpoint.gatherCandidates(function(error) {
+    if (error) { 
+        return callback(error);
+    }
+});
+
+//////////////// Trickle ICE Candidate *///////////
+
+webRtcEndpoint.on('OnIceCandidate', function(event) {
+    trickleIceCandidate(event.candidate); 
+});
+  
+////// END OF MY APP //////
+
+
+
+/*
+
 var path = require('path');
 var express = require('express');
 var ws = require('ws');
@@ -41,7 +199,7 @@ var app = express();
 
 /*
  * Definition of global variables.
- */
+ *//*
 
 var kurentoClient = null;
 var userRegistry = new UserRegistry();
@@ -56,7 +214,7 @@ function nextUniqueId() {
 
 /*
  * Definition of helper classes
- */
+ *//*
 
 // Represents caller and callee sessions
 function UserSession(id, name, ws) {
@@ -203,7 +361,7 @@ CallMediaPipeline.prototype.release = function() {
 
 /*
  * Server startup
- */
+ *//*
 
 var asUrl = url.parse(argv.as_uri);
 var port = asUrl.port;
@@ -455,3 +613,5 @@ function onIceCandidate(sessionId, _candidate) {
 }
 
 app.use(express.static(path.join(__dirname, 'static')));
+
+*/
