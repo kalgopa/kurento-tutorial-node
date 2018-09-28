@@ -31,6 +31,8 @@ var argv = minimist(process.argv.slice(2), {
   }
 });
 
+//some options
+
 var options =
 {
   key:  fs.readFileSync('keys/server.key'),
