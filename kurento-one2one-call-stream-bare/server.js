@@ -58,7 +58,7 @@ getKurentoClient(function callback(error, kurentoClient) {
             return callback(error);
         }
 
-        createWebRtcEndpoint(pipeline, function(error, webrtcEndpoint) {
+        createWebRtcEndpoint(pipeline, function(error, webRtcEndpoint) {
             if (error) {
                 pipeline.release();
                 return callback(error);
